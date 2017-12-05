@@ -1,0 +1,15 @@
+#!/bin/sh -eu
+
+exit_code=0
+
+cd "$(dirname $0)"
+for test_script in test_*.sh; do
+    if sh "${test_script}"; then
+        echo "  PASS ${test_script}"
+    else
+        echo "! FAIL ${test_script}"
+        exit_code=1
+    fi
+done
+
+exit ${exit_code}
