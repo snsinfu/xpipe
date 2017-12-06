@@ -78,7 +78,7 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
 // chunk to a command via pipe.
 int run(struct xpipe *xpipe)
 {
-    char *buffer = malloc(xpipe->bufsize);
+    char *buffer = malloc(xpipe->bufsize); // FIXME: free this
     if (buffer == NULL) {
         return -1;
     }
