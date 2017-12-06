@@ -92,20 +92,18 @@ int run(struct xpipe *xpipe)
             }
         }
 
-        ssize_t bytes_read = read(
-            STDIN_FILENO, buffer + avail, xpipe->buffer_size - avail);
-        if (bytes_read == -1) {
+        ssize_t nb_read;
+        while ((nb_read = read(STDIN_FILENO, buffer + avail, xpipe->buffer_size - avail)) == -1) {
             if (errno == EINTR) {
                 continue;
+            } else {
+                return -1;
             }
-            return -1;
         }
-        if (bytes_read == 0) {
+        if (nb_read == 0) {
             break;
         }
-        avail += (size_t) bytes_read;
-
-        assert(avail <= xpipe->buffer_size);
+        avail += (size_t) nb_read;
 
         if (avail == xpipe->buffer_size) {
             ssize_t end_pos = find_last(buffer, avail, '\n');
