@@ -12,18 +12,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/select.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 struct xpipe
 {
     size_t buffer_size;
     char **command;
+    time_t timeout;
 };
 
 static int     configure(struct xpipe *xpipe, int argc, char **argv);
 static int     run(struct xpipe *xpipe);
 static int     parse_size_t(const char *str, size_t *value, size_t limit);
 static ssize_t find_last(const char *data, size_t size, char ch);
+static int     wait_input(int fd, time_t timeout);
 static int     pipe_exec(char **argv, const char *data, size_t size);
 static pid_t   open_pipe(char **argv, int *fd);
 static int     write_all(int fd, const char *data, size_t size);
@@ -38,6 +42,7 @@ int main(int argc, char **argv)
     struct xpipe xpipe = {
         .buffer_size = 8192,
         .command     = NULL,
+        .timeout     = 2,
     };
     if (configure(&xpipe, argc, argv) == -1) {
         return 1;
@@ -81,6 +86,13 @@ int run(struct xpipe *xpipe)
     size_t nused = 0;
 
     for (;;) {
+        if (xpipe->timeout > 0) {
+            int ready = wait_input(STDIN_FILENO, xpipe->timeout);
+            if (ready == -1) {
+                return -1;
+            }
+        }
+
         ssize_t bytes_read = read(
             STDIN_FILENO, buffer + nused, xpipe->buffer_size - nused);
         if (bytes_read == -1) {
@@ -165,6 +177,20 @@ ssize_t find_last(const char *data, size_t size, char ch)
         }
     }
     return pos;
+}
+
+// wait_input waits for any data available for read from given descriptor or
+// timeout. Returns 1 on receiving data, 0 on timeout, or -1 on any error.
+int wait_input(int fd, time_t timeout)
+{
+    struct timeval timeout_tv = {
+        .tv_sec  = timeout,
+        .tv_usec = 0,
+    };
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    return select(1, &fds, NULL, NULL, &timeout_tv);
 }
 
 // pipe_exec executes a command, writes data to its stdin and waits for exit.
