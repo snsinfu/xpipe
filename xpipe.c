@@ -25,7 +25,7 @@ struct xpipe
 
 static int     configure(struct xpipe *xpipe, int argc, char **argv);
 static int     run(struct xpipe *xpipe);
-static int     parse_size_t(const char *str, size_t *value, size_t limit);
+static int     parse_size(const char *str, size_t *value, size_t limit);
 static int     parse_duration(const char *str, time_t *value, time_t limit);
 static ssize_t find_last(const char *data, size_t size, char ch);
 static int     wait_input(int fd, time_t timeout);
@@ -61,7 +61,7 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
     for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size_t(optarg, &xpipe->bufsize, SIZE_MAX) == -1) {
+            if (parse_size(optarg, &xpipe->bufsize, SIZE_MAX) == -1) {
                 return -1;
             }
             break;
@@ -135,9 +135,9 @@ int run(struct xpipe *xpipe)
     return 0;
 }
 
-// parse_size_t parses and validates a size_t from string and stores the result
+// parse_size parses and validates a size_t from string and stores the result
 // to given pointer (if not NULL). Returns 0 on success. Retunrs -1 on error.
-int parse_size_t(const char *str, size_t *value, size_t limit)
+int parse_size(const char *str, size_t *value, size_t limit)
 {
     errno = 0;
     char *end;
