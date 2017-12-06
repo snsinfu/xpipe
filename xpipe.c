@@ -75,7 +75,7 @@ int run(struct xpipe *xpipe)
 {
     char *buffer = malloc(xpipe->buffer_size);
     if (buffer == NULL) {
-        return 1;
+        return -1;
     }
 
     size_t nused = 0;
@@ -85,7 +85,7 @@ int run(struct xpipe *xpipe)
             buffer + nused, 1, xpipe->buffer_size - nused, stdin);
         if (nread == 0) {
             if (ferror(stdin)) {
-                return 1;
+                return -1;
             }
             assert(feof(stdin));
             break;
@@ -98,12 +98,12 @@ int run(struct xpipe *xpipe)
         if (nused == xpipe->buffer_size) {
             ssize_t newline_pos = find_last(buffer, nused, '\n');
             if (newline_pos == -1) {
-                return 1;
+                return -1;
             }
             size_t size = (size_t) newline_pos + 1; // Include newline.
 
             if (pipe_exec(xpipe->command, buffer, size) == -1) {
-                return 1;
+                return -1;
             }
 
             memmove(buffer, buffer + size, nused - size);
@@ -112,7 +112,7 @@ int run(struct xpipe *xpipe)
     }
 
     if (nused > 0 && pipe_exec(xpipe->command, buffer, nused) == -1) {
-        return 1;
+        return -1;
     }
 
     return 0;
