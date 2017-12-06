@@ -82,8 +82,7 @@ int run(struct xpipe *xpipe)
     if (buffer == NULL) {
         return -1;
     }
-
-    size_t nused = 0;
+    size_t avail = 0;
 
     for (;;) {
         if (xpipe->timeout > 0) {
@@ -94,7 +93,7 @@ int run(struct xpipe *xpipe)
         }
 
         ssize_t bytes_read = read(
-            STDIN_FILENO, buffer + nused, xpipe->buffer_size - nused);
+            STDIN_FILENO, buffer + avail, xpipe->buffer_size - avail);
         if (bytes_read == -1) {
             if (errno == EINTR) {
                 continue;
@@ -104,27 +103,27 @@ int run(struct xpipe *xpipe)
         if (bytes_read == 0) {
             break;
         }
-        nused += (size_t) bytes_read;
+        avail += (size_t) bytes_read;
 
-        assert(nused <= xpipe->buffer_size);
+        assert(avail <= xpipe->buffer_size);
 
-        if (nused == xpipe->buffer_size) {
-            ssize_t newline_pos = find_last(buffer, nused, '\n');
-            if (newline_pos == -1) {
+        if (avail == xpipe->buffer_size) {
+            ssize_t end_pos = find_last(buffer, avail, '\n');
+            if (end_pos == -1) {
                 return -1;
             }
-            size_t size = (size_t) newline_pos + 1; // Include newline.
+            size_t used = (size_t) end_pos + 1; // Include newline.
 
-            if (pipe_exec(xpipe->command, buffer, size) == -1) {
+            if (pipe_exec(xpipe->command, buffer, used) == -1) {
                 return -1;
             }
 
-            memmove(buffer, buffer + size, nused - size);
-            nused -= size;
+            memmove(buffer, buffer + used, avail - used);
+            avail -= used;
         }
     }
 
-    if (nused > 0 && pipe_exec(xpipe->command, buffer, nused) == -1) {
+    if (avail > 0 && pipe_exec(xpipe->command, buffer, avail) == -1) {
         return -1;
     }
 
