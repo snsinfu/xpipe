@@ -25,8 +25,8 @@ struct xpipe
 
 static int     configure(struct xpipe *xpipe, int argc, char **argv);
 static int     run(struct xpipe *xpipe);
-static int     parse_size(const char *str, size_t *value, size_t limit);
-static int     parse_duration(const char *str, time_t *value, time_t limit);
+static int     parse_size(const char *str, size_t *value);
+static int     parse_duration(const char *str, time_t *value);
 static ssize_t find_last(const char *data, size_t size, char ch);
 static int     wait_input(int fd, time_t timeout);
 static int     pipe_exec(char **argv, const char *data, size_t size);
@@ -61,13 +61,13 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
     for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size(optarg, &xpipe->bufsize, SIZE_MAX) == -1) {
+            if (parse_size(optarg, &xpipe->bufsize) == -1) {
                 return -1;
             }
             break;
 
           case 't':
-            if (parse_duration(optarg, &xpipe->timeout, 3600 * 24 * 31) == -1) {
+            if (parse_duration(optarg, &xpipe->timeout) == -1) {
                 return -1;
             }
             break;
@@ -137,7 +137,7 @@ int run(struct xpipe *xpipe)
 
 // parse_size parses and validates a size_t from string and stores the result
 // to given pointer (if not NULL). Returns 0 on success. Retunrs -1 on error.
-int parse_size(const char *str, size_t *value, size_t limit)
+int parse_size(const char *str, size_t *value)
 {
     errno = 0;
     char *end;
@@ -155,7 +155,7 @@ int parse_size(const char *str, size_t *value, size_t limit)
     if (result < 0) {
         return -1;
     }
-    if ((uintmax_t) result > limit) {
+    if ((uintmax_t) result > SIZE_MAX) {
         return -1;
     }
 
@@ -172,7 +172,7 @@ int parse_size(const char *str, size_t *value, size_t limit)
 // parse_duration parses and validates a time_t from string and stores the
 // result to given pointer (if not NULL). Returns 0 on success. Retunrs -1 on
 // error.
-int parse_duration(const char *str, time_t *value, time_t limit)
+int parse_duration(const char *str, time_t *value)
 {
     errno = 0;
     char *end;
@@ -188,9 +188,6 @@ int parse_duration(const char *str, time_t *value, time_t limit)
         return -1;
     }
     if (result < 0) {
-        return -1;
-    }
-    if ((uintmax_t) result > (uintmax_t) limit) {
         return -1;
     }
     assert(errno == 0);
