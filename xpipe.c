@@ -81,18 +81,19 @@ int run(struct xpipe *xpipe)
     size_t nused = 0;
 
     for (;;) {
-        size_t nread = fread(
-            buffer + nused, 1, xpipe->buffer_size - nused, stdin);
-        if (nread == 0) {
-            if (ferror(stdin)) {
-                return -1;
+        ssize_t bytes_read = read(
+            STDIN_FILENO, buffer + nused, xpipe->buffer_size - nused);
+        if (bytes_read == -1) {
+            if (errno == EINTR) {
+                continue;
             }
-            assert(feof(stdin));
+            return -1;
+        }
+        if (bytes_read == 0) {
             break;
         }
-        nused += nread;
+        nused += (size_t) bytes_read;
 
-        assert(nread > 0);
         assert(nused <= xpipe->buffer_size);
 
         if (nused == xpipe->buffer_size) {
