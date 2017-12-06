@@ -26,6 +26,7 @@ struct xpipe
 static int     configure(struct xpipe *xpipe, int argc, char **argv);
 static int     run(struct xpipe *xpipe);
 static int     parse_size_t(const char *str, size_t *value, size_t limit);
+static int     parse_duration(const char *str, time_t *value, time_t limit);
 static ssize_t find_last(const char *data, size_t size, char ch);
 static int     wait_input(int fd, time_t timeout);
 static int     pipe_exec(char **argv, const char *data, size_t size);
@@ -42,7 +43,7 @@ int main(int argc, char **argv)
     struct xpipe xpipe = {
         .bufsize = 8192,
         .argv    = NULL,
-        .timeout = 2,
+        .timeout = 0,
     };
     if (configure(&xpipe, argc, argv) == -1) {
         return 1;
@@ -57,10 +58,16 @@ int main(int argc, char **argv)
 // success. Returns -1 on error.
 int configure(struct xpipe *xpipe, int argc, char **argv)
 {
-    for (int ch; (ch = getopt(argc, argv, "b:")) != -1; ) {
+    for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
         switch (ch) {
           case 'b':
             if (parse_size_t(optarg, &xpipe->bufsize, SIZE_MAX) == -1) {
+                return -1;
+            }
+            break;
+
+          case 't':
+            if (parse_duration(optarg, &xpipe->timeout, 3600 * 24 * 31) == -1) {
                 return -1;
             }
             break;
@@ -157,6 +164,39 @@ int parse_size_t(const char *str, size_t *value, size_t limit)
 
     if (value) {
         *value = (size_t) result;
+    }
+
+    return 0;
+}
+
+// parse_duration parses and validates a time_t from string and stores the
+// result to given pointer (if not NULL). Returns 0 on success. Retunrs -1 on
+// error.
+int parse_duration(const char *str, time_t *value, time_t limit)
+{
+    errno = 0;
+    char *end;
+    intmax_t result = strtoimax(str, &end, 10);
+
+    if (end == str) {
+        return -1;
+    }
+    if (*end != '\0') {
+        return -1;
+    }
+    if ((result == INTMAX_MAX || result == INTMAX_MIN) && errno == ERANGE) {
+        return -1;
+    }
+    if (result < 0) {
+        return -1;
+    }
+    if ((uintmax_t) result > (uintmax_t) limit) {
+        return -1;
+    }
+    assert(errno == 0);
+
+    if (value) {
+        *value = (time_t) result;
     }
 
     return 0;
