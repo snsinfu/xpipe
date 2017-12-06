@@ -18,7 +18,7 @@
 
 struct xpipe
 {
-    size_t buffer_size;
+    size_t bufsize;
     char **command;
     time_t timeout;
 };
@@ -40,9 +40,9 @@ enum
 int main(int argc, char **argv)
 {
     struct xpipe xpipe = {
-        .buffer_size = 8192,
-        .command     = NULL,
-        .timeout     = 2,
+        .bufsize = 8192,
+        .command = NULL,
+        .timeout = 2,
     };
     if (configure(&xpipe, argc, argv) == -1) {
         return 1;
@@ -60,7 +60,7 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
     for (int ch; (ch = getopt(argc, argv, "b:")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size_t(optarg, &xpipe->buffer_size, SIZE_MAX) == -1) {
+            if (parse_size_t(optarg, &xpipe->bufsize, SIZE_MAX) == -1) {
                 return -1;
             }
             break;
@@ -78,7 +78,7 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
 // chunk to a command via pipe.
 int run(struct xpipe *xpipe)
 {
-    char *buffer = malloc(xpipe->buffer_size);
+    char *buffer = malloc(xpipe->bufsize);
     if (buffer == NULL) {
         return -1;
     }
@@ -93,7 +93,7 @@ int run(struct xpipe *xpipe)
         }
 
         ssize_t nb_read;
-        while ((nb_read = read(STDIN_FILENO, buffer + avail, xpipe->buffer_size - avail)) == -1) {
+        while ((nb_read = read(STDIN_FILENO, buffer + avail, xpipe->bufsize - avail)) == -1) {
             if (errno == EINTR) {
                 continue;
             } else {
@@ -105,7 +105,7 @@ int run(struct xpipe *xpipe)
         }
         avail += (size_t) nb_read;
 
-        if (avail == xpipe->buffer_size) {
+        if (avail == xpipe->bufsize) {
             ssize_t end_pos = find_last(buffer, avail, '\n');
             if (end_pos == -1) {
                 return -1;
