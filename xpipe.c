@@ -19,7 +19,7 @@
 struct xpipe
 {
     size_t bufsize;
-    char **command;
+    char **argv;
     time_t timeout;
 };
 
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
 {
     struct xpipe xpipe = {
         .bufsize = 8192,
-        .command = NULL,
+        .argv    = NULL,
         .timeout = 2,
     };
     if (configure(&xpipe, argc, argv) == -1) {
@@ -69,7 +69,7 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
             return -1;
         }
     }
-    xpipe->command = argv + optind;
+    xpipe->argv = argv + optind;
 
     return 0;
 }
@@ -112,7 +112,7 @@ int run(struct xpipe *xpipe)
             }
             size_t used = (size_t) end_pos + 1; // Include newline.
 
-            if (pipe_exec(xpipe->command, buffer, used) == -1) {
+            if (pipe_exec(xpipe->argv, buffer, used) == -1) {
                 return -1;
             }
 
@@ -121,7 +121,7 @@ int run(struct xpipe *xpipe)
         }
     }
 
-    if (avail > 0 && pipe_exec(xpipe->command, buffer, avail) == -1) {
+    if (avail > 0 && pipe_exec(xpipe->argv, buffer, avail) == -1) {
         return -1;
     }
 
