@@ -73,12 +73,14 @@ int init(struct xpipe *xpipe, int argc, char **argv)
         switch (ch) {
           case 'b':
             if (parse_size(optarg, &xpipe->bufsize) == -1) {
+                fputs("xpipe: invalid buffer size\n", stderr);
                 return -1;
             }
             break;
 
           case 't':
             if (parse_duration(optarg, &xpipe->timeout) == -1) {
+                fputs("xpipe: invalid timeout\n", stderr);
                 return -1;
             }
             break;
@@ -109,6 +111,7 @@ int run(const struct xpipe *xpipe)
 {
     char *buf = malloc(xpipe->bufsize); // FIXME: free this
     if (buf == NULL) {
+        perror("xpipe: buffer allocation failed");
         return -1;
     }
     size_t avail = 0;
@@ -122,6 +125,7 @@ int run(const struct xpipe *xpipe)
         }
         if (nb_read == -1) {
             if (errno != EWOULDBLOCK) {
+                perror("xpipe: failed to read stdin");
                 return -1;
             }
             nb_read = 0; // Time out.
@@ -131,6 +135,7 @@ int run(const struct xpipe *xpipe)
         if (avail == xpipe->bufsize || nb_read == 0) {
             ssize_t used = pipe_lines(xpipe->argv, buf, avail);
             if (used == -1) {
+                perror("xpipe: failed to write to pipe");
                 return -1;
             }
             avail -= (size_t) used;
@@ -138,11 +143,13 @@ int run(const struct xpipe *xpipe)
         }
 
         if (avail == xpipe->bufsize) {
-            return -1; // Buffer full and can't flush.
+            fputs("xpipe: buffer full\n", stderr);
+            return -1;
         }
     }
 
     if (avail > 0 && pipe_data(xpipe->argv, buf, avail) == -1) {
+        perror("xpipe: failed to write to pipe");
         return -1;
     }
 
