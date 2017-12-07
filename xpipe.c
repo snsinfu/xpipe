@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,16 +25,16 @@ struct xpipe
 
 static int     configure(struct xpipe *xpipe, int argc, char **argv);
 static int     run(struct xpipe *xpipe);
-static ssize_t pipe_lines(char **argv, const char *data, size_t size);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *vaule, uintmax_t limit);
 static ssize_t find_last(const char *data, size_t size, char ch);
-static int     wait_input(int fd, time_t timeout);
-static int     pipe_exec(char **argv, const char *data, size_t size);
+static ssize_t pipe_lines(char **argv, const char *data, size_t size);
+static int     pipe_data(char **argv, const char *data, size_t size);
 static pid_t   open_pipe(char **argv, int *fd);
-static ssize_t try_read(int fd, char *buf, size_t size, time_t timeout);
 static int     write_all(int fd, const char *data, size_t size);
+static ssize_t try_read(int fd, char *buf, size_t size, time_t timeout);
+static int     wait_input(int fd, time_t timeout);
 
 enum
 {
@@ -124,30 +123,11 @@ int run(struct xpipe *xpipe)
         }
     }
 
-    if (avail > 0 && pipe_exec(xpipe->argv, buffer, avail) == -1) {
+    if (avail > 0 && pipe_data(xpipe->argv, buffer, avail) == -1) {
         return -1;
     }
 
     return 0;
-}
-
-// pipe_lines pipes lines to a command.
-//
-// The function succeeds and does nothing if the data does not contain any
-// newline character.
-//
-// Returns the number of bytes piped on success or -1 on error.
-ssize_t pipe_lines(char **argv, const char *data, size_t size)
-{
-    ssize_t end_pos = find_last(data, size, '\n');
-    if (end_pos == -1) {
-        return 0;
-    }
-    size_t use = (size_t) end_pos + 1; // Include newline.
-    if (pipe_exec(argv, data, use) == -1) {
-        return -1;
-    }
-    return (ssize_t) use;
 }
 
 // parse_size parses and validates a size_t from string and stores the result
@@ -224,23 +204,28 @@ ssize_t find_last(const char *data, size_t size, char ch)
     return pos;
 }
 
-// wait_input waits for any data available for read from given descriptor or
-// timeout. Returns 1 on receiving data, 0 on timeout, or -1 on any error.
-int wait_input(int fd, time_t timeout)
+// pipe_lines pipes lines to a command.
+//
+// The function succeeds and does nothing if the data does not contain any
+// newline character.
+//
+// Returns the number of bytes piped on success or -1 on error.
+ssize_t pipe_lines(char **argv, const char *data, size_t size)
 {
-    struct timeval timeout_tv = {
-        .tv_sec  = timeout,
-        .tv_usec = 0,
-    };
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(fd, &fds);
-    return select(1, &fds, NULL, NULL, &timeout_tv);
+    ssize_t end_pos = find_last(data, size, '\n');
+    if (end_pos == -1) {
+        return 0;
+    }
+    size_t use = (size_t) end_pos + 1; // Include newline.
+    if (pipe_data(argv, data, use) == -1) {
+        return -1;
+    }
+    return (ssize_t) use;
 }
 
-// pipe_exec executes a command, writes data to its stdin and waits for exit.
+// pipe_data executes a command, writes data to its stdin and waits for exit.
 // Returns 0 on success. Returns -1 on error.
-int pipe_exec(char **argv, const char *data, size_t size)
+int pipe_data(char **argv, const char *data, size_t size)
 {
     int pipe_wr;
 
@@ -310,6 +295,24 @@ pid_t open_pipe(char **argv, int *fd)
     return pid;
 }
 
+// write_all writes data to a file, handling potential partial writes. Returns
+// 0 on success. Returns -1 on error.
+int write_all(int fd, const char *data, size_t size)
+{
+    while (size > 0) {
+        ssize_t written = write(fd, data, size);
+        if (written == -1) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        data += written;
+        size -= (size_t) written;
+    }
+    return 0;
+}
+
 // try_read attempts to read data from a blocking descriptor.
 //
 // Timeout is not imposed (thus indefinitely blocks until data is read) if
@@ -332,20 +335,16 @@ ssize_t try_read(int fd, char *buf, size_t size, time_t timeout)
     return read(fd, buf, size);
 }
 
-// write_all writes data to a file, handling potential partial writes. Returns
-// 0 on success. Returns -1 on error.
-int write_all(int fd, const char *data, size_t size)
+// wait_input waits for any data available for read from given descriptor or
+// timeout. Returns 1 on receiving data, 0 on timeout, or -1 on any error.
+int wait_input(int fd, time_t timeout)
 {
-    while (size > 0) {
-        ssize_t written = write(fd, data, size);
-        if (written == -1) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        }
-        data += written;
-        size -= (size_t) written;
-    }
-    return 0;
+    struct timeval timeout_tv = {
+        .tv_sec  = timeout,
+        .tv_usec = 0,
+    };
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    return select(1, &fds, NULL, NULL, &timeout_tv);
 }
