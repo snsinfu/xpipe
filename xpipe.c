@@ -29,7 +29,7 @@ static void    clean(const struct xpipe *xpipe);
 static int     run(const struct xpipe *xpipe);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
-static int     parse_uint(const char *str, uintmax_t *vaule, uintmax_t limit);
+static int     parse_uint(const char *str, uintmax_t *value, uintmax_t limit);
 static ssize_t find_last(const char *data, size_t size, char ch);
 static ssize_t pipe_lines(char **argv, const char *data, size_t size);
 static int     pipe_data(char **argv, const char *data, size_t size);
