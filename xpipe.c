@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,6 +26,7 @@ struct xpipe
 
 static int     configure(struct xpipe *xpipe, int argc, char **argv);
 static int     run(struct xpipe *xpipe);
+static ssize_t pipe_lines(char **argv, const char *data, size_t size);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *vaule, uintmax_t limit);
@@ -32,6 +34,7 @@ static ssize_t find_last(const char *data, size_t size, char ch);
 static int     wait_input(int fd, time_t timeout);
 static int     pipe_exec(char **argv, const char *data, size_t size);
 static pid_t   open_pipe(char **argv, int *fd);
+static ssize_t try_read(int fd, char *buf, size_t size, time_t timeout);
 static int     write_all(int fd, const char *data, size_t size);
 
 enum
@@ -44,7 +47,7 @@ int main(int argc, char **argv)
     struct xpipe xpipe = {
         .bufsize = 8192,
         .argv    = NULL,
-        .timeout = 0,
+        .timeout = (time_t) -1,
     };
     if (configure(&xpipe, argc, argv) == -1) {
         return 1;
@@ -93,52 +96,31 @@ int run(struct xpipe *xpipe)
     size_t avail = 0;
 
     for (;;) {
-        if (xpipe->timeout > 0) {
-            int ready = wait_input(STDIN_FILENO, xpipe->timeout);
-            if (ready == -1) {
-                return -1;
-            }
-            if (ready == 0) {
-                // FIXME: DRY
-                ssize_t end_pos = find_last(buffer, avail, '\n');
-                if (end_pos >= 0) {
-                    size_t used = (size_t) end_pos + 1; // Include newline.
-
-                    if (pipe_exec(xpipe->argv, buffer, used) == -1) {
-                        return -1;
-                    }
-                    memmove(buffer, buffer + used, avail - used);
-                    avail -= used;
-                }
-            }
-        }
-
-        ssize_t nb_read;
-        while ((nb_read = read(STDIN_FILENO, buffer + avail, xpipe->bufsize - avail)) == -1) {
-            if (errno == EINTR) {
-                continue;
-            } else {
-                return -1;
-            }
-        }
+        ssize_t nb_read = try_read(
+            STDIN_FILENO, buffer + avail, xpipe->bufsize - avail,
+            xpipe->timeout);
         if (nb_read == 0) {
             break;
         }
+        if (nb_read == -1) {
+            if (errno != EWOULDBLOCK) {
+                return -1;
+            }
+            nb_read = 0; // Time out.
+        }
         avail += (size_t) nb_read;
 
+        if (avail == xpipe->bufsize || nb_read == 0) {
+            ssize_t used = pipe_lines(xpipe->argv, buffer, avail);
+            if (used == -1) {
+                return -1;
+            }
+            avail -= (size_t) used;
+            memmove(buffer, buffer + used, avail);
+        }
+
         if (avail == xpipe->bufsize) {
-            ssize_t end_pos = find_last(buffer, avail, '\n');
-            if (end_pos == -1) {
-                return -1;
-            }
-            size_t used = (size_t) end_pos + 1; // Include newline.
-
-            if (pipe_exec(xpipe->argv, buffer, used) == -1) {
-                return -1;
-            }
-
-            memmove(buffer, buffer + used, avail - used);
-            avail -= used;
+            return -1; // Buffer full and can't flush.
         }
     }
 
@@ -147,6 +129,25 @@ int run(struct xpipe *xpipe)
     }
 
     return 0;
+}
+
+// pipe_lines pipes lines to a command.
+//
+// The function succeeds and does nothing if the data does not contain any
+// newline character.
+//
+// Returns the number of bytes piped on success or -1 on error.
+ssize_t pipe_lines(char **argv, const char *data, size_t size)
+{
+    ssize_t end_pos = find_last(data, size, '\n');
+    if (end_pos == -1) {
+        return 0;
+    }
+    size_t use = (size_t) end_pos + 1; // Include newline.
+    if (pipe_exec(argv, data, use) == -1) {
+        return -1;
+    }
+    return (ssize_t) use;
 }
 
 // parse_size parses and validates a size_t from string and stores the result
@@ -307,6 +308,28 @@ pid_t open_pipe(char **argv, int *fd)
     *fd = pipe_wr;
 
     return pid;
+}
+
+// try_read attempts to read data from a blocking descriptor.
+//
+// Timeout is not imposed (thus indefinitely blocks until data is read) if
+// timeout is set to (time_t) -1.
+//
+// Returns the number on bytes read on success, 0 on EOF, or -1 on timeout or
+// error. errno is set to EWOULDBLOCK in case of timeout.
+ssize_t try_read(int fd, char *buf, size_t size, time_t timeout)
+{
+    if (timeout != (time_t) -1) {
+        int ready = wait_input(fd, timeout);
+        if (ready == -1) {
+            return -1;
+        }
+        if (ready == 0) {
+            errno = EWOULDBLOCK;
+            return -1;
+        }
+    }
+    return read(fd, buf, size);
 }
 
 // write_all writes data to a file, handling potential partial writes. Returns
