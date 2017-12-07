@@ -24,6 +24,7 @@ struct xpipe
     time_t timeout;
 };
 
+static void    usage(void);
 static int     init(struct xpipe *xpipe, int argc, char **argv);
 static void    clean(const struct xpipe *xpipe);
 static int     run(const struct xpipe *xpipe);
@@ -57,6 +58,20 @@ int main(int argc, char **argv)
     return rc == -1;
 }
 
+// usage prints a help message to stderr.
+void usage(void)
+{
+    const char *msg =
+        "Usage: xpipe [-h] [-b bufsize] [-t timeout] command ...\n"
+        "\n"
+        "Options\n"
+        "  -b bufsize  set buffer size in bytes\n"
+        "  -t timeout  set read timeout in seconds\n"
+        "  -h          show this help\n"
+        "\n";
+    fputs(msg, stderr);
+}
+
 // init initializes xpipe using predefined defaults and command-line arguments.
 //
 // Returns 0 on success or -1 on error.
@@ -69,7 +84,7 @@ int init(struct xpipe *xpipe, int argc, char **argv)
         .timeout = (time_t) -1,
     };
 
-    for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
+    for (int ch; (ch = getopt(argc, argv, "b:t:h")) != -1; ) {
         switch (ch) {
           case 'b':
             if (parse_size(optarg, &xpipe->bufsize) == -1) {
@@ -84,6 +99,10 @@ int init(struct xpipe *xpipe, int argc, char **argv)
                 return -1;
             }
             break;
+
+          case 'h':
+            usage();
+            exit(0);
 
           default:
             return -1;
