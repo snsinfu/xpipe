@@ -367,7 +367,7 @@ int write_all(int fd, const char *data, size_t size)
 // Timeout is not imposed (thus indefinitely blocks until data is read) if
 // timeout is set to (time_t) -1.
 //
-// Returns the number on bytes read on success, 0 on EOF, or -1 on timeout or
+// Returns the number of bytes read on success, 0 on EOF, or -1 on timeout or
 // error. errno is set to EWOULDBLOCK in case of timeout.
 ssize_t try_read(int fd, char *buf, size_t size, time_t timeout)
 {
