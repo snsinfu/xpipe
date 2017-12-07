@@ -57,8 +57,9 @@ int main(int argc, char **argv)
     return 0;
 }
 
-// configure initializes xpipe by parsing command-line arguments. Returns 0 on
-// success. Returns -1 on error.
+// configure initializes xpipe by parsing command-line arguments.
+//
+// Returns 0 on success or -1 on error.
 int configure(struct xpipe *xpipe, int argc, char **argv)
 {
     for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
@@ -84,8 +85,8 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
     return 0;
 }
 
-// run executes the xpipe command: Reads stdin by chunk and sends lines in each
-// chunk to a command via pipe.
+// run executes the main functionality: Reads stdin by chunk and sends lines in
+// each chunk to a command via pipe.
 int run(struct xpipe *xpipe)
 {
     char *buffer = malloc(xpipe->bufsize); // FIXME: free this
@@ -131,7 +132,9 @@ int run(struct xpipe *xpipe)
 }
 
 // parse_size parses and validates a size_t from string and stores the result
-// to given pointer (if not NULL). Returns 0 on success. Retunrs -1 on error.
+// to given pointer (if not NULL).
+//
+// Returns 0 on success or -1 on error.
 int parse_size(const char *str, size_t *value)
 {
     uintmax_t uint;
@@ -145,8 +148,9 @@ int parse_size(const char *str, size_t *value)
 }
 
 // parse_duration parses and validates a time_t from string and stores the
-// result to given pointer (if not NULL). Returns 0 on success. Retunrs -1 on
-// error.
+// result to given pointer (if not NULL).
+//
+// Returns 0 on success or -1 on error.
 int parse_duration(const char *str, time_t *value)
 {
     uintmax_t uint;
@@ -160,7 +164,8 @@ int parse_duration(const char *str, time_t *value)
 }
 
 // parse_uint parses unsigned integer from string with limit validation.
-// Returns 0 on success. Returns -1 on error.
+//
+// Returns 0 on success or -1 on error.
 int parse_uint(const char *str, uintmax_t *value, uintmax_t limit)
 {
     errno = 0;
@@ -190,8 +195,9 @@ int parse_uint(const char *str, uintmax_t *value, uintmax_t limit)
     return 0;
 }
 
-// find_last returns the index of the last occurrence of ch in a memory range.
-// Returns -1 if ch is not found.
+// find_last searches data for the last occurrence of ch.
+//
+// Returns the index of the last occurrence of ch or -1 if ch is not found.
 ssize_t find_last(const char *data, size_t size, char ch)
 {
     ssize_t pos = (ssize_t) size - 1;
@@ -224,7 +230,8 @@ ssize_t pipe_lines(char **argv, const char *data, size_t size)
 }
 
 // pipe_data executes a command, writes data to its stdin and waits for exit.
-// Returns 0 on success. Returns -1 on error.
+//
+// Returns 0 on success or -1 on error.
 int pipe_data(char **argv, const char *data, size_t size)
 {
     int pipe_wr;
@@ -254,9 +261,10 @@ int pipe_data(char **argv, const char *data, size_t size)
     return 0;
 }
 
-// open_pipe launches a command with stdin bound to a new pipe. Returns the
-// PID of the command process and assigns the write end of the pipe to *fd on
-// success. Returns -1 on error.
+// open_pipe launches a command with stdin bound to a new pipe.
+//
+// Returns the PID of the command process and assigns the write end of the pipe
+// to *fd on success. Returns -1 on error.
 pid_t open_pipe(char **argv, int *fd)
 {
     int fds[2];
@@ -295,8 +303,9 @@ pid_t open_pipe(char **argv, int *fd)
     return pid;
 }
 
-// write_all writes data to a file, handling potential partial writes. Returns
-// 0 on success. Returns -1 on error.
+// write_all writes data to a file, handling potential partial writes.
+//
+// Returns 0 on success or -1 on error.
 int write_all(int fd, const char *data, size_t size)
 {
     while (size > 0) {
@@ -336,7 +345,9 @@ ssize_t try_read(int fd, char *buf, size_t size, time_t timeout)
 }
 
 // wait_input waits for any data available for read from given descriptor or
-// timeout. Returns 1 on receiving data, 0 on timeout, or -1 on any error.
+// timeout.
+//
+// Returns 1 on receiving data, 0 on timeout, or -1 on any error.
 int wait_input(int fd, time_t timeout)
 {
     struct timeval timeout_tv = {
