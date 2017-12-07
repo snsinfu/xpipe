@@ -16,15 +16,15 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-struct xpipe
+struct config
 {
     size_t bufsize;
     char **argv;
     time_t timeout;
 };
 
-static int     configure(struct xpipe *xpipe, int argc, char **argv);
-static int     run(struct xpipe *xpipe);
+static int     configure(struct config *config, int argc, char **argv);
+static int     run(struct config *config);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *vaule, uintmax_t limit);
@@ -43,35 +43,35 @@ enum
 
 int main(int argc, char **argv)
 {
-    struct xpipe xpipe = {
+    struct config config = {
         .bufsize = 8192,
         .argv    = NULL,
         .timeout = (time_t) -1,
     };
-    if (configure(&xpipe, argc, argv) == -1) {
+    if (configure(&config, argc, argv) == -1) {
         return 1;
     }
-    if (run(&xpipe) == -1) {
+    if (run(&config) == -1) {
         return 1;
     }
     return 0;
 }
 
-// configure initializes xpipe by parsing command-line arguments.
+// configure initializes config by parsing command-line arguments.
 //
 // Returns 0 on success or -1 on error.
-int configure(struct xpipe *xpipe, int argc, char **argv)
+int configure(struct config *config, int argc, char **argv)
 {
     for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size(optarg, &xpipe->bufsize) == -1) {
+            if (parse_size(optarg, &config->bufsize) == -1) {
                 return -1;
             }
             break;
 
           case 't':
-            if (parse_duration(optarg, &xpipe->timeout) == -1) {
+            if (parse_duration(optarg, &config->timeout) == -1) {
                 return -1;
             }
             break;
@@ -80,16 +80,16 @@ int configure(struct xpipe *xpipe, int argc, char **argv)
             return -1;
         }
     }
-    xpipe->argv = argv + optind;
+    config->argv = argv + optind;
 
     return 0;
 }
 
 // run executes the main functionality: Reads stdin by chunk and sends lines in
 // each chunk to a command via pipe.
-int run(struct xpipe *xpipe)
+int run(struct config *config)
 {
-    char *buffer = malloc(xpipe->bufsize); // FIXME: free this
+    char *buffer = malloc(config->bufsize); // FIXME: free this
     if (buffer == NULL) {
         return -1;
     }
@@ -97,8 +97,8 @@ int run(struct xpipe *xpipe)
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, buffer + avail, xpipe->bufsize - avail,
-            xpipe->timeout);
+            STDIN_FILENO, buffer + avail, config->bufsize - avail,
+            config->timeout);
         if (nb_read == 0) {
             break;
         }
@@ -110,8 +110,8 @@ int run(struct xpipe *xpipe)
         }
         avail += (size_t) nb_read;
 
-        if (avail == xpipe->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(xpipe->argv, buffer, avail);
+        if (avail == config->bufsize || nb_read == 0) {
+            ssize_t used = pipe_lines(config->argv, buffer, avail);
             if (used == -1) {
                 return -1;
             }
@@ -119,12 +119,12 @@ int run(struct xpipe *xpipe)
             memmove(buffer, buffer + used, avail);
         }
 
-        if (avail == xpipe->bufsize) {
+        if (avail == config->bufsize) {
             return -1; // Buffer full and can't flush.
         }
     }
 
-    if (avail > 0 && pipe_data(xpipe->argv, buffer, avail) == -1) {
+    if (avail > 0 && pipe_data(config->argv, buffer, avail) == -1) {
         return -1;
     }
 
