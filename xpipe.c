@@ -112,6 +112,7 @@ int init(struct xpipe *xpipe, int argc, char **argv)
 
     xpipe->buf = malloc(xpipe->bufsize);
     if (xpipe->buf == NULL) {
+        perror("xpipe: buffer allocation failed");
         return -1;
     }
 
@@ -128,16 +129,11 @@ void clean(const struct xpipe *xpipe)
 // each chunk to a command via pipe.
 int run(const struct xpipe *xpipe)
 {
-    char *buf = malloc(xpipe->bufsize); // FIXME: free this
-    if (buf == NULL) {
-        perror("xpipe: buffer allocation failed");
-        return -1;
-    }
     size_t avail = 0;
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, buf + avail, xpipe->bufsize - avail,
+            STDIN_FILENO, xpipe->buf + avail, xpipe->bufsize - avail,
             xpipe->timeout);
         if (nb_read == 0) {
             break;
@@ -152,13 +148,13 @@ int run(const struct xpipe *xpipe)
         avail += (size_t) nb_read;
 
         if (avail == xpipe->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(xpipe->argv, buf, avail);
+            ssize_t used = pipe_lines(xpipe->argv, xpipe->buf, avail);
             if (used == -1) {
                 perror("xpipe: failed to write to pipe");
                 return -1;
             }
             avail -= (size_t) used;
-            memmove(buf, buf + used, avail);
+            memmove(xpipe->buf, xpipe->buf + used, avail);
         }
 
         if (avail == xpipe->bufsize) {
@@ -167,7 +163,7 @@ int run(const struct xpipe *xpipe)
         }
     }
 
-    if (avail > 0 && pipe_data(xpipe->argv, buf, avail) == -1) {
+    if (avail > 0 && pipe_data(xpipe->argv, xpipe->buf, avail) == -1) {
         perror("xpipe: failed to write to pipe");
         return -1;
     }
