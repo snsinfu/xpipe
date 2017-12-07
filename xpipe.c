@@ -16,15 +16,17 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-struct config
+struct xpipe
 {
+    char  *buf;
     size_t bufsize;
     char **argv;
     time_t timeout;
 };
 
-static int     configure(struct config *config, int argc, char **argv);
-static int     run(const struct config *config);
+static int     init(struct xpipe *xpipe, int argc, char **argv);
+static void    clean(const struct xpipe *xpipe);
+static int     run(const struct xpipe *xpipe);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *vaule, uintmax_t limit);
@@ -43,35 +45,40 @@ enum
 
 int main(int argc, char **argv)
 {
-    struct config config = {
+    struct xpipe xpipe;
+
+    if (init(&xpipe, argc, argv) == -1) {
+        return 1;
+    }
+
+    int rc = run(&xpipe);
+    clean(&xpipe);
+
+    return rc == -1;
+}
+
+// init initializes xpipe using predefined defaults and command-line arguments.
+//
+// Returns 0 on success or -1 on error.
+int init(struct xpipe *xpipe, int argc, char **argv)
+{
+    *xpipe = (struct xpipe) {
+        .buf     = NULL,
         .bufsize = 8192,
         .argv    = NULL,
         .timeout = (time_t) -1,
     };
-    if (configure(&config, argc, argv) == -1) {
-        return 1;
-    }
-    if (run(&config) == -1) {
-        return 1;
-    }
-    return 0;
-}
 
-// configure initializes config by parsing command-line arguments.
-//
-// Returns 0 on success or -1 on error.
-int configure(struct config *config, int argc, char **argv)
-{
     for (int ch; (ch = getopt(argc, argv, "b:t:")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size(optarg, &config->bufsize) == -1) {
+            if (parse_size(optarg, &xpipe->bufsize) == -1) {
                 return -1;
             }
             break;
 
           case 't':
-            if (parse_duration(optarg, &config->timeout) == -1) {
+            if (parse_duration(optarg, &xpipe->timeout) == -1) {
                 return -1;
             }
             break;
@@ -80,16 +87,27 @@ int configure(struct config *config, int argc, char **argv)
             return -1;
         }
     }
-    config->argv = argv + optind;
+    xpipe->argv = argv + optind;
+
+    xpipe->buf = malloc(xpipe->bufsize);
+    if (xpipe->buf == NULL) {
+        return -1;
+    }
 
     return 0;
 }
 
+// clean frees resources associated to xpipe.
+void clean(const struct xpipe *xpipe)
+{
+    free(xpipe->buf);
+}
+
 // run executes the main functionality: Reads stdin by chunk and sends lines in
 // each chunk to a command via pipe.
-int run(const struct config *config)
+int run(const struct xpipe *xpipe)
 {
-    char *buf = malloc(config->bufsize); // FIXME: free this
+    char *buf = malloc(xpipe->bufsize); // FIXME: free this
     if (buf == NULL) {
         return -1;
     }
@@ -97,8 +115,8 @@ int run(const struct config *config)
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, buf + avail, config->bufsize - avail,
-            config->timeout);
+            STDIN_FILENO, buf + avail, xpipe->bufsize - avail,
+            xpipe->timeout);
         if (nb_read == 0) {
             break;
         }
@@ -110,8 +128,8 @@ int run(const struct config *config)
         }
         avail += (size_t) nb_read;
 
-        if (avail == config->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(config->argv, buf, avail);
+        if (avail == xpipe->bufsize || nb_read == 0) {
+            ssize_t used = pipe_lines(xpipe->argv, buf, avail);
             if (used == -1) {
                 return -1;
             }
@@ -119,12 +137,12 @@ int run(const struct config *config)
             memmove(buf, buf + used, avail);
         }
 
-        if (avail == config->bufsize) {
+        if (avail == xpipe->bufsize) {
             return -1; // Buffer full and can't flush.
         }
     }
 
-    if (avail > 0 && pipe_data(config->argv, buf, avail) == -1) {
+    if (avail > 0 && pipe_data(xpipe->argv, buf, avail) == -1) {
         return -1;
     }
 
