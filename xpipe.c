@@ -98,6 +98,19 @@ int run(struct xpipe *xpipe)
             if (ready == -1) {
                 return -1;
             }
+            if (ready == 0) {
+                // FIXME: DRY
+                ssize_t end_pos = find_last(buffer, avail, '\n');
+                if (end_pos >= 0) {
+                    size_t used = (size_t) end_pos + 1; // Include newline.
+
+                    if (pipe_exec(xpipe->argv, buffer, used) == -1) {
+                        return -1;
+                    }
+                    memmove(buffer, buffer + used, avail - used);
+                    avail -= used;
+                }
+            }
         }
 
         ssize_t nb_read;
