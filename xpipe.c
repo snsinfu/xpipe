@@ -89,15 +89,15 @@ int configure(struct config *config, int argc, char **argv)
 // each chunk to a command via pipe.
 int run(struct config *config)
 {
-    char *buffer = malloc(config->bufsize); // FIXME: free this
-    if (buffer == NULL) {
+    char *buf = malloc(config->bufsize); // FIXME: free this
+    if (buf == NULL) {
         return -1;
     }
     size_t avail = 0;
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, buffer + avail, config->bufsize - avail,
+            STDIN_FILENO, buf + avail, config->bufsize - avail,
             config->timeout);
         if (nb_read == 0) {
             break;
@@ -111,12 +111,12 @@ int run(struct config *config)
         avail += (size_t) nb_read;
 
         if (avail == config->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(config->argv, buffer, avail);
+            ssize_t used = pipe_lines(config->argv, buf, avail);
             if (used == -1) {
                 return -1;
             }
             avail -= (size_t) used;
-            memmove(buffer, buffer + used, avail);
+            memmove(buf, buf + used, avail);
         }
 
         if (avail == config->bufsize) {
@@ -124,7 +124,7 @@ int run(struct config *config)
         }
     }
 
-    if (avail > 0 && pipe_data(config->argv, buffer, avail) == -1) {
+    if (avail > 0 && pipe_data(config->argv, buf, avail) == -1) {
         return -1;
     }
 
