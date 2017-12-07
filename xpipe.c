@@ -24,7 +24,7 @@ struct config
 };
 
 static int     configure(struct config *config, int argc, char **argv);
-static int     run(struct config *config);
+static int     run(const struct config *config);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *vaule, uintmax_t limit);
@@ -87,7 +87,7 @@ int configure(struct config *config, int argc, char **argv)
 
 // run executes the main functionality: Reads stdin by chunk and sends lines in
 // each chunk to a command via pipe.
-int run(struct config *config)
+int run(const struct config *config)
 {
     char *buf = malloc(config->bufsize); // FIXME: free this
     if (buf == NULL) {
