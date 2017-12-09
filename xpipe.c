@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <sys/select.h>
 #include <sys/time.h>
@@ -36,8 +37,12 @@ static ssize_t pipe_lines(char **argv, const char *data, size_t size);
 static int     pipe_data(char **argv, const char *data, size_t size);
 static pid_t   open_pipe(char **argv, int *fd);
 static int     write_all(int fd, const char *data, size_t size);
-static ssize_t try_read(int fd, char *buf, size_t size, time_t timeout);
-static int     wait_input(int fd, time_t timeout);
+static ssize_t try_read(int fd, char *buf, size_t size, const struct timeval *deadline);
+static int     wait_input(int fd, const struct timeval *deadline);
+static int     monoclock(struct timeval *time);
+static void    sub(const struct timeval *t1, const struct timeval *t2, struct timeval *diff);
+static void    normalize(struct timeval *time);
+
 
 enum
 {
@@ -131,10 +136,13 @@ int run(const struct xpipe *xpipe)
 {
     size_t avail = 0;
 
+    struct timeval deadline;
+    struct timeval *active_deadline = NULL;
+
     for (;;) {
         ssize_t nb_read = try_read(
             STDIN_FILENO, xpipe->buf + avail, xpipe->bufsize - avail,
-            xpipe->timeout);
+            active_deadline);
         if (nb_read == 0) {
             break;
         }
@@ -145,6 +153,15 @@ int run(const struct xpipe *xpipe)
             }
             nb_read = 0; // Time out.
         }
+
+        if (xpipe->timeout > 0 && avail == 0 && nb_read > 0) {
+            if (monoclock(&deadline) == -1) {
+                return -1;
+            }
+            deadline.tv_sec += xpipe->timeout;
+            active_deadline = &deadline;
+        }
+
         avail += (size_t) nb_read;
 
         if (avail == xpipe->bufsize || nb_read == 0) {
@@ -155,6 +172,8 @@ int run(const struct xpipe *xpipe)
             }
             avail -= (size_t) used;
             memmove(xpipe->buf, xpipe->buf + used, avail);
+
+            active_deadline = NULL;
         }
 
         if (avail == xpipe->bufsize) {
@@ -364,38 +383,82 @@ int write_all(int fd, const char *data, size_t size)
 
 // try_read attempts to read data from a blocking descriptor.
 //
-// Timeout is not imposed (thus indefinitely blocks until data is read) if
-// timeout is set to (time_t) -1.
+// deadline must be compatible with the timeval obtained via monoclock().
 //
 // Returns the number of bytes read on success, 0 on EOF, or -1 on timeout or
 // error. errno is set to EWOULDBLOCK in case of timeout.
-ssize_t try_read(int fd, char *buf, size_t size, time_t timeout)
+ssize_t try_read(int fd, char *buf, size_t size, const struct timeval *deadline)
 {
-    if (timeout != (time_t) -1) {
-        int ready = wait_input(fd, timeout);
-        if (ready == -1) {
-            return -1;
-        }
-        if (ready == 0) {
-            errno = EWOULDBLOCK;
-            return -1;
-        }
+    int ready = wait_input(fd, deadline);
+    if (ready == -1) {
+        return -1;
+    }
+    if (ready == 0) {
+        errno = EWOULDBLOCK;
+        return -1;
     }
     return read(fd, buf, size);
 }
 
 // wait_input waits for any data available for read from given descriptor or
-// timeout.
+// passing deadline.
+//
+// deadline must be compatible with the timeval obtained via monoclock().
 //
 // Returns 1 on receiving data, 0 on timeout, or -1 on any error.
-int wait_input(int fd, time_t timeout)
+int wait_input(int fd, const struct timeval *deadline)
 {
-    struct timeval timeout_tv = {
-        .tv_sec  = timeout,
-        .tv_usec = 0,
-    };
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(fd, &fds);
-    return select(1, &fds, NULL, NULL, &timeout_tv);
+
+    if (deadline) {
+        struct timeval now;
+        if (monoclock(&now) == -1) {
+            return -1;
+        }
+        struct timeval timeout;
+        sub(deadline, &now, &timeout);
+        return select(fd + 1, &fds, NULL, NULL, &timeout);
+    }
+    return select(fd + 1, &fds, NULL, NULL, NULL);
+}
+
+// monoclock gets the current time point from a monotonic clock.
+//
+// Returns 0 on success or -1 on error.
+int monoclock(struct timeval *time)
+{
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+        return -1;
+    }
+    time->tv_sec = ts.tv_sec;
+    time->tv_usec = (suseconds_t) (ts.tv_nsec / 1000);
+    return 0;
+}
+
+// sub calculates the time difference t1 - t2.
+void sub(const struct timeval *t1, const struct timeval *t2, struct timeval *diff)
+{
+    diff->tv_sec = t1->tv_sec - t2->tv_sec;
+    diff->tv_usec = t1->tv_usec - t2->tv_usec;
+    normalize(diff);
+}
+
+// normalize adjusts tv_usec of given time within 0 to 999999 with carries and
+// borrows from tv_sec.
+void normalize(struct timeval *time)
+{
+    const suseconds_t second_usec = 1000000;
+
+    while (time->tv_usec >= second_usec) {
+        time->tv_sec++;
+        time->tv_usec -= second_usec;
+    }
+
+    while (time->tv_usec < 0) {
+        time->tv_sec--;
+        time->tv_usec += second_usec;
+    }
 }
