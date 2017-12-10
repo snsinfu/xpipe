@@ -334,16 +334,17 @@ int wait_input(int fd, const struct timeval *deadline)
     FD_ZERO(&fds);
     FD_SET(fd, &fds);
 
+    struct timeval timeout;
+    struct timeval *timeout_to_use = NULL;
     if (deadline) {
         struct timeval now;
         if (monoclock(&now) == -1) {
             return -1;
         }
-        struct timeval timeout;
         sub(deadline, &now, &timeout);
-        return select(fd + 1, &fds, NULL, NULL, &timeout);
+        timeout_to_use = &timeout;
     }
-    return select(fd + 1, &fds, NULL, NULL, NULL);
+    return select(fd + 1, &fds, NULL, NULL, timeout_to_use);
 }
 
 // monoclock gets the current time point from a monotonic clock.
