@@ -72,7 +72,7 @@ void usage(void)
         "\n"
         "Options\n"
         "  -b bufsize  set buffer size in bytes\n"
-        "  -t timeout  set read timeout in seconds\n"
+        "  -t timeout  set buffer timeout in seconds\n"
         "  -h          show this help\n"
         "\n";
     fputs(msg, stderr);

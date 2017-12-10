@@ -9,7 +9,7 @@ xpipe
 
     Options
       -b bufsize  set buffer size in bytes
-      -t timeout  set read timeout in seconds
+      -t timeout  set buffer timeout in seconds
       -h          show this help
 
 `command ...` is executed for each block of lines. The `-b bufsize` option sets
