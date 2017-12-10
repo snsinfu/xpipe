@@ -204,7 +204,8 @@ int do_run(const struct config *config, char *buf)
 // The function does nothing and succeeds if the data does not contain any
 // newline character.
 //
-// Returns the number of bytes piped on success or -1 on error.
+// Returns the number of bytes piped and assigns the exit status of the command
+// to *status on success. Returns -1 on error.
 ssize_t pipe_lines(char **argv, const char *buf, size_t size, int *status)
 {
     ssize_t end_pos = find_last(buf, size, '\n');
@@ -220,7 +221,8 @@ ssize_t pipe_lines(char **argv, const char *buf, size_t size, int *status)
 
 // pipe_data executes a command, writes data to its stdin and waits for exit.
 //
-// Returns 0 on success or -1 on error.
+// Returns the number of bytes piped and assigns the exit status of the command
+// to *status on success. Returns -1 on error.
 int pipe_data(char **argv, const char *buf, size_t size, int *status)
 {
     int pipe_wr;
