@@ -237,8 +237,8 @@ int pipe_data(char **argv, const char *buf, size_t size, int *status)
         return -1;
     }
     if (close(pipe_wr) == -1) {
-        // XXX: pid leaks if program recovers from this error.
-        return -1;
+        perror("xpipe");
+        exit(1);
     }
 
     return waitpid(pid, status, 0);
@@ -259,8 +259,10 @@ pid_t open_pipe(char **argv, int *fd)
 
     pid_t pid = fork();
     if (pid == -1) {
-        close(pipe_rd);
-        close(pipe_wr);
+        if (close(pipe_rd) == -1 || close(pipe_wr) == -1) {
+            perror("xpipe");
+            exit(1);
+        }
         return -1;
     }
 
@@ -278,8 +280,8 @@ pid_t open_pipe(char **argv, int *fd)
 
     // Parent process.
     if (close(pipe_rd) == -1) {
-        // XXX: pid leaks if program recovers from this error.
-        return -1;
+        perror("xpipe");
+        exit(1);
     }
     *fd = pipe_wr;
 
