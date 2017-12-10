@@ -118,6 +118,8 @@ int configure(struct config *config, int argc, char **argv)
 
 // run executes the main functionality: Reads stdin by chunk and sends lines in
 // each chunk to a command via pipe.
+//
+// Returns 0 on success or -1 on error.
 int run(const struct config *config)
 {
     char *buf = malloc(config->bufsize);
