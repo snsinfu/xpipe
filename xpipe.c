@@ -34,6 +34,7 @@ static pid_t   open_pipe(char **argv, int *fd);
 static int     write_all(int fd, const char *buf, size_t size);
 static ssize_t try_read(int fd, char *buf, size_t size, const struct timeval *deadline);
 static int     wait_input(int fd, const struct timeval *deadline);
+static void    close_or_exit(int fd, int status);
 static int     monoclock(struct timeval *time);
 static void    sub(const struct timeval *t1, const struct timeval *t2, struct timeval *diff);
 static void    normalize(struct timeval *time);
@@ -233,18 +234,11 @@ int pipe_data(char **argv, const char *buf, size_t size, int *status)
     }
 
     if (write_all(pipe_wr, buf, size) == -1) {
-        perror("xpipe");
-        if (close(pipe_wr) == -1) {
-            perror("xpipe");
-            exit(1);
-        }
+        close_or_exit(pipe_wr, 1);
         // XXX: pid leaks if program recovers from this error.
         return -1;
     }
-    if (close(pipe_wr) == -1) {
-        perror("xpipe");
-        exit(1);
-    }
+    close_or_exit(pipe_wr, 1);
 
     return waitpid(pid, status, 0);
 }
@@ -264,18 +258,14 @@ pid_t open_pipe(char **argv, int *fd)
 
     pid_t pid = fork();
     if (pid == -1) {
-        if (close(pipe_rd) == -1 || close(pipe_wr) == -1) {
-            perror("xpipe");
-            exit(1);
-        }
+        close_or_exit(pipe_rd, 1);
+        close_or_exit(pipe_wr, 1);
         return -1;
     }
 
     if (pid == 0) {
         // Child process.
-        if (close(pipe_wr) == -1) {
-            exit(exit_panic);
-        }
+        close_or_exit(pipe_wr, exit_panic);
         if (dup2(pipe_rd, STDIN_FILENO) == -1) {
             exit(exit_panic);
         }
@@ -284,10 +274,7 @@ pid_t open_pipe(char **argv, int *fd)
     }
 
     // Parent process.
-    if (close(pipe_rd) == -1) {
-        perror("xpipe");
-        exit(1);
-    }
+    close_or_exit(pipe_rd, 1);
     *fd = pipe_wr;
 
     return pid;
@@ -351,6 +338,15 @@ int wait_input(int fd, const struct timeval *deadline)
         timeout_to_use = &timeout;
     }
     return select(fd + 1, &fds, NULL, NULL, timeout_to_use);
+}
+
+// close_or_exit closes fd and, on error, exits program with specified status.
+void close_or_exit(int fd, int status)
+{
+    if (close(fd) == -1) {
+        perror("xpipe");
+        exit(status);
+    }
 }
 
 // monoclock gets the current time point from a monotonic clock.
