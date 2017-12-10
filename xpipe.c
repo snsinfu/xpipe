@@ -233,7 +233,12 @@ int pipe_data(char **argv, const char *buf, size_t size, int *status)
     }
 
     if (write_all(pipe_wr, buf, size) == -1) {
-        // XXX: pipe_wr and pid leak if program recovers from this error.
+        perror("xpipe");
+        if (close(pipe_wr) == -1) {
+            perror("xpipe");
+            exit(1);
+        }
+        // XXX: pid leaks if program recovers from this error.
         return -1;
     }
     if (close(pipe_wr) == -1) {
