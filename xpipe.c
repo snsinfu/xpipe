@@ -53,7 +53,11 @@ enum
 
 int main(int argc, char **argv)
 {
-    struct config config;
+    struct config config = {
+        .bufsize = 8192,
+        .argv    = NULL,
+        .timeout = (time_t) -1,
+    };
 
     if (init(&config, argc, argv) == -1) {
         return 1;
@@ -83,12 +87,6 @@ void usage(void)
 // Returns 0 on success or -1 on error.
 int init(struct config *config, int argc, char **argv)
 {
-    *config = (struct config) {
-        .bufsize = 8192,
-        .argv    = NULL,
-        .timeout = (time_t) -1,
-    };
-
     for (int ch; (ch = getopt(argc, argv, "b:t:h")) != -1; ) {
         switch (ch) {
           case 'b':
