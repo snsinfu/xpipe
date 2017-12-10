@@ -27,6 +27,7 @@ struct xpipe
 static void    usage(void);
 static int     init(struct xpipe *xpipe, int argc, char **argv);
 static int     run(const struct xpipe *xpipe);
+static int     do_run(const struct xpipe *xpipe, char *buf);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *value, uintmax_t limit);
@@ -122,8 +123,16 @@ int run(const struct xpipe *xpipe)
     char *buf = malloc(xpipe->bufsize);
     if (buf == NULL) {
         perror("xpipe: failed to allocate memory");
-        goto fail;
+        return -1;
     }
+
+    int result = do_run(xpipe, buf);
+    free(buf);
+    return result;
+}
+
+int do_run(const struct xpipe *xpipe, char *buf)
+{
     size_t avail = 0;
 
     struct timeval deadline;
@@ -138,14 +147,14 @@ int run(const struct xpipe *xpipe)
         if (nb_read == -1) {
             if (errno != EWOULDBLOCK) {
                 perror("xpipe: failed to read stdin");
-                goto fail;
+                return -1;
             }
             nb_read = 0; // Time out.
         }
 
         if (xpipe->timeout > 0 && avail == 0 && nb_read > 0) {
             if (monoclock(&deadline) == -1) {
-                goto fail;
+                return -1;
             }
             deadline.tv_sec += xpipe->timeout;
             active_deadline = &deadline;
@@ -157,7 +166,7 @@ int run(const struct xpipe *xpipe)
             ssize_t used = pipe_lines(xpipe->argv, buf, avail);
             if (used == -1) {
                 perror("xpipe: failed to write to pipe");
-                goto fail;
+                return -1;
             }
             avail -= (size_t) used;
             memmove(buf, buf + used, avail);
@@ -167,21 +176,16 @@ int run(const struct xpipe *xpipe)
 
         if (avail == xpipe->bufsize) {
             fputs("xpipe: buffer full\n", stderr);
-            goto fail;
+            return -1;
         }
     }
 
     if (avail > 0 && pipe_data(xpipe->argv, buf, avail) == -1) {
         perror("xpipe: failed to write to pipe");
-        goto fail;
+        return -1;
     }
 
-    free(buf);
     return 0;
-
-  fail:
-    free(buf);
-    return -1;
 }
 
 // parse_size parses and validates a size_t from string and stores the result
