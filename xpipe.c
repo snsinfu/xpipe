@@ -294,15 +294,15 @@ pid_t open_pipe(char **argv, int *fd)
 int write_all(int fd, const char *buf, size_t size)
 {
     while (size > 0) {
-        ssize_t written = write(fd, buf, size);
-        if (written == -1) {
+        ssize_t nb_written = write(fd, buf, size);
+        if (nb_written == -1) {
             if (errno == EINTR) {
                 continue;
             }
             return -1;
         }
-        buf += written;
-        size -= (size_t) written;
+        buf += nb_written;
+        size -= (size_t) nb_written;
     }
     return 0;
 }
