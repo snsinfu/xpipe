@@ -164,8 +164,8 @@ int do_run(const struct config *config, char *buf)
 
         if (avail == config->buf_size || nb_read == 0) {
             int status;
-            ssize_t used = pipe_lines(config->argv, buf, avail, &status);
-            if (used == -1) {
+            ssize_t nb_used = pipe_lines(config->argv, buf, avail, &status);
+            if (nb_used == -1) {
                 perror("xpipe: failed to write to pipe");
                 return -1;
             }
@@ -173,8 +173,8 @@ int do_run(const struct config *config, char *buf)
                 exit(WEXITSTATUS(status));
             }
 
-            avail -= (size_t) used;
-            memmove(buf, buf + used, avail);
+            avail -= (size_t) nb_used;
+            memmove(buf, buf + nb_used, avail);
 
             active_deadline = NULL;
         }
