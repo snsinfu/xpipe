@@ -195,7 +195,7 @@ int do_run(const struct config *config, char *buf)
 
 // pipe_lines pipes lines to a command.
 //
-// The function succeeds and does nothing if the data does not contain any
+// The function does nothing and succeeds if the data does not contain any
 // newline character.
 //
 // Returns the number of bytes piped on success or -1 on error.
