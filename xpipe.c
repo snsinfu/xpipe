@@ -17,7 +17,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-struct xpipe
+struct config
 {
     size_t bufsize;
     char **argv;
@@ -25,9 +25,9 @@ struct xpipe
 };
 
 static void    usage(void);
-static int     init(struct xpipe *xpipe, int argc, char **argv);
-static int     run(const struct xpipe *xpipe);
-static int     do_run(const struct xpipe *xpipe, char *buf);
+static int     init(struct config *config, int argc, char **argv);
+static int     run(const struct config *config);
+static int     do_run(const struct config *config, char *buf);
 
 static ssize_t pipe_lines(char **argv, const char *buf, size_t size);
 static int     pipe_data(char **argv, const char *buf, size_t size);
@@ -53,13 +53,12 @@ enum
 
 int main(int argc, char **argv)
 {
-    struct xpipe xpipe;
+    struct config config;
 
-    if (init(&xpipe, argc, argv) == -1) {
+    if (init(&config, argc, argv) == -1) {
         return 1;
     }
-
-    if (run(&xpipe) == -1) {
+    if (run(&config) == -1) {
         return 1;
     }
     return 0;
@@ -82,9 +81,9 @@ void usage(void)
 // init initializes xpipe using predefined defaults and command-line arguments.
 //
 // Returns 0 on success or -1 on error.
-int init(struct xpipe *xpipe, int argc, char **argv)
+int init(struct config *config, int argc, char **argv)
 {
-    *xpipe = (struct xpipe) {
+    *config = (struct config) {
         .bufsize = 8192,
         .argv    = NULL,
         .timeout = (time_t) -1,
@@ -93,14 +92,14 @@ int init(struct xpipe *xpipe, int argc, char **argv)
     for (int ch; (ch = getopt(argc, argv, "b:t:h")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size(optarg, &xpipe->bufsize) == -1) {
+            if (parse_size(optarg, &config->bufsize) == -1) {
                 fputs("xpipe: invalid buffer size\n", stderr);
                 return -1;
             }
             break;
 
           case 't':
-            if (parse_duration(optarg, &xpipe->timeout) == -1) {
+            if (parse_duration(optarg, &config->timeout) == -1) {
                 fputs("xpipe: invalid timeout\n", stderr);
                 return -1;
             }
@@ -114,27 +113,27 @@ int init(struct xpipe *xpipe, int argc, char **argv)
             return -1;
         }
     }
-    xpipe->argv = argv + optind;
+    config->argv = argv + optind;
 
     return 0;
 }
 
 // run executes the main functionality: Reads stdin by chunk and sends lines in
 // each chunk to a command via pipe.
-int run(const struct xpipe *xpipe)
+int run(const struct config *config)
 {
-    char *buf = malloc(xpipe->bufsize);
+    char *buf = malloc(config->bufsize);
     if (buf == NULL) {
         perror("xpipe: failed to allocate memory");
         return -1;
     }
 
-    int result = do_run(xpipe, buf);
+    int result = do_run(config, buf);
     free(buf);
     return result;
 }
 
-int do_run(const struct xpipe *xpipe, char *buf)
+int do_run(const struct config *config, char *buf)
 {
     size_t avail = 0;
 
@@ -143,7 +142,7 @@ int do_run(const struct xpipe *xpipe, char *buf)
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, buf + avail, xpipe->bufsize - avail, active_deadline);
+            STDIN_FILENO, buf + avail, config->bufsize - avail, active_deadline);
         if (nb_read == 0) {
             break;
         }
@@ -155,18 +154,18 @@ int do_run(const struct xpipe *xpipe, char *buf)
             nb_read = 0; // Time out.
         }
 
-        if (xpipe->timeout > 0 && avail == 0 && nb_read > 0) {
+        if (config->timeout > 0 && avail == 0 && nb_read > 0) {
             if (monoclock(&deadline) == -1) {
                 return -1;
             }
-            deadline.tv_sec += xpipe->timeout;
+            deadline.tv_sec += config->timeout;
             active_deadline = &deadline;
         }
 
         avail += (size_t) nb_read;
 
-        if (avail == xpipe->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(xpipe->argv, buf, avail);
+        if (avail == config->bufsize || nb_read == 0) {
+            ssize_t used = pipe_lines(config->argv, buf, avail);
             if (used == -1) {
                 perror("xpipe: failed to write to pipe");
                 return -1;
@@ -177,13 +176,13 @@ int do_run(const struct xpipe *xpipe, char *buf)
             active_deadline = NULL;
         }
 
-        if (avail == xpipe->bufsize) {
+        if (avail == config->bufsize) {
             fputs("xpipe: buffer full\n", stderr);
             return -1;
         }
     }
 
-    if (avail > 0 && pipe_data(xpipe->argv, buf, avail) == -1) {
+    if (avail > 0 && pipe_data(config->argv, buf, avail) == -1) {
         perror("xpipe: failed to write to pipe");
         return -1;
     }
