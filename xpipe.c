@@ -296,9 +296,6 @@ int write_all(int fd, const char *buf, size_t size)
     while (size > 0) {
         ssize_t nb_written = write(fd, buf, size);
         if (nb_written == -1) {
-            if (errno == EINTR) {
-                continue;
-            }
             return -1;
         }
         buf += nb_written;
