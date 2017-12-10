@@ -152,7 +152,7 @@ int do_run(const struct config *config, char *buf)
             nb_read = 0; // Time out.
         }
 
-        // First read into empty buffer triggers a timeout measurement.
+        // Trigger a timeout measurement on the first read to empty buffer.
         if (config->timeout > 0 && avail == 0 && nb_read > 0) {
             if (monoclock(&deadline) == -1) {
                 return -1;
