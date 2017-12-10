@@ -19,7 +19,6 @@
 
 struct xpipe
 {
-    char  *buf;
     size_t bufsize;
     char **argv;
     time_t timeout;
@@ -27,7 +26,6 @@ struct xpipe
 
 static void    usage(void);
 static int     init(struct xpipe *xpipe, int argc, char **argv);
-static void    clean(const struct xpipe *xpipe);
 static int     run(const struct xpipe *xpipe);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
@@ -57,10 +55,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int rc = run(&xpipe);
-    clean(&xpipe);
-
-    return rc == -1;
+    if (run(&xpipe) == -1) {
+        return -1;
+    }
+    return 0;
 }
 
 // usage prints a help message to stderr.
@@ -83,7 +81,6 @@ void usage(void)
 int init(struct xpipe *xpipe, int argc, char **argv)
 {
     *xpipe = (struct xpipe) {
-        .buf     = NULL,
         .bufsize = 8192,
         .argv    = NULL,
         .timeout = (time_t) -1,
@@ -115,25 +112,18 @@ int init(struct xpipe *xpipe, int argc, char **argv)
     }
     xpipe->argv = argv + optind;
 
-    xpipe->buf = malloc(xpipe->bufsize);
-    if (xpipe->buf == NULL) {
-        perror("xpipe: buffer allocation failed");
-        return -1;
-    }
-
     return 0;
-}
-
-// clean frees resources associated to xpipe.
-void clean(const struct xpipe *xpipe)
-{
-    free(xpipe->buf);
 }
 
 // run executes the main functionality: Reads stdin by chunk and sends lines in
 // each chunk to a command via pipe.
 int run(const struct xpipe *xpipe)
 {
+    char *buf = malloc(xpipe->bufsize);
+    if (buf == NULL) {
+        perror("xpipe: failed to allocate memory");
+        goto fail;
+    }
     size_t avail = 0;
 
     struct timeval deadline;
@@ -141,22 +131,21 @@ int run(const struct xpipe *xpipe)
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, xpipe->buf + avail, xpipe->bufsize - avail,
-            active_deadline);
+            STDIN_FILENO, buf + avail, xpipe->bufsize - avail, active_deadline);
         if (nb_read == 0) {
             break;
         }
         if (nb_read == -1) {
             if (errno != EWOULDBLOCK) {
                 perror("xpipe: failed to read stdin");
-                return -1;
+                goto fail;
             }
             nb_read = 0; // Time out.
         }
 
         if (xpipe->timeout > 0 && avail == 0 && nb_read > 0) {
             if (monoclock(&deadline) == -1) {
-                return -1;
+                goto fail;
             }
             deadline.tv_sec += xpipe->timeout;
             active_deadline = &deadline;
@@ -165,29 +154,34 @@ int run(const struct xpipe *xpipe)
         avail += (size_t) nb_read;
 
         if (avail == xpipe->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(xpipe->argv, xpipe->buf, avail);
+            ssize_t used = pipe_lines(xpipe->argv, buf, avail);
             if (used == -1) {
                 perror("xpipe: failed to write to pipe");
-                return -1;
+                goto fail;
             }
             avail -= (size_t) used;
-            memmove(xpipe->buf, xpipe->buf + used, avail);
+            memmove(buf, buf + used, avail);
 
             active_deadline = NULL;
         }
 
         if (avail == xpipe->bufsize) {
             fputs("xpipe: buffer full\n", stderr);
-            return -1;
+            goto fail;
         }
     }
 
-    if (avail > 0 && pipe_data(xpipe->argv, xpipe->buf, avail) == -1) {
+    if (avail > 0 && pipe_data(xpipe->argv, buf, avail) == -1) {
         perror("xpipe: failed to write to pipe");
-        return -1;
+        goto fail;
     }
 
+    free(buf);
     return 0;
+
+  fail:
+    free(buf);
+    return -1;
 }
 
 // parse_size parses and validates a size_t from string and stores the result
