@@ -25,7 +25,7 @@ struct config
 };
 
 static void    usage(void);
-static int     init(struct config *config, int argc, char **argv);
+static int     configure(struct config *config, int argc, char **argv);
 static int     run(const struct config *config);
 static int     do_run(const struct config *config, char *buf);
 
@@ -59,7 +59,7 @@ int main(int argc, char **argv)
         .timeout = (time_t) -1,
     };
 
-    if (init(&config, argc, argv) == -1) {
+    if (configure(&config, argc, argv) == -1) {
         return 1;
     }
     if (run(&config) == -1) {
@@ -82,10 +82,10 @@ void usage(void)
     fputs(msg, stderr);
 }
 
-// init initializes xpipe using predefined defaults and command-line arguments.
+// configure sets xpipe parameters to user-supplied values.
 //
 // Returns 0 on success or -1 on error.
-int init(struct config *config, int argc, char **argv)
+int configure(struct config *config, int argc, char **argv)
 {
     for (int ch; (ch = getopt(argc, argv, "b:t:h")) != -1; ) {
         switch (ch) {
