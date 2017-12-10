@@ -28,19 +28,15 @@ static void    usage(void);
 static int     configure(struct config *config, int argc, char **argv);
 static int     run(const struct config *config);
 static int     do_run(const struct config *config, char *buf);
-
 static ssize_t pipe_lines(char **argv, const char *buf, size_t size, int *status);
 static int     pipe_data(char **argv, const char *buf, size_t size, int *status);
 static pid_t   open_pipe(char **argv, int *fd);
-
 static int     write_all(int fd, const char *buf, size_t size);
 static ssize_t try_read(int fd, char *buf, size_t size, const struct timeval *deadline);
 static int     wait_input(int fd, const struct timeval *deadline);
-
 static int     monoclock(struct timeval *time);
 static void    sub(const struct timeval *t1, const struct timeval *t2, struct timeval *diff);
 static void    normalize(struct timeval *time);
-
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *value, uintmax_t limit);
@@ -58,7 +54,6 @@ int main(int argc, char **argv)
         .argv    = NULL,
         .timeout = 0,
     };
-
     if (configure(&config, argc, argv) == -1) {
         return 1;
     }
@@ -127,7 +122,6 @@ int run(const struct config *config)
         perror("xpipe: failed to allocate memory");
         return -1;
     }
-
     int result = do_run(config, buf);
     free(buf);
     return result;
@@ -384,7 +378,6 @@ void normalize(struct timeval *time)
         time->tv_sec++;
         time->tv_usec -= second_usec;
     }
-
     while (time->tv_usec < 0) {
         time->tv_sec--;
         time->tv_usec += second_usec;
