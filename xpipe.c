@@ -133,6 +133,9 @@ int run(const struct config *config)
     return result;
 }
 
+// do_run implements run() using given preallocated buffer.
+//
+// Returns 0 on success or -1 on error.
 int do_run(const struct config *config, char *buf)
 {
     size_t avail = 0;
