@@ -146,7 +146,7 @@ int do_run(const struct config *config, char *buf)
         }
         if (nb_read == -1) {
             if (errno != EWOULDBLOCK) {
-                perror("xpipe: failed to read stdin");
+                perror("xpipe: failed to read from stdin");
                 return -1;
             }
             nb_read = 0; // Time out.
