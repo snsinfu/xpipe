@@ -107,7 +107,13 @@ int configure(struct config *config, int argc, char **argv)
             return -1;
         }
     }
-    config->argv = argv + optind;
+    argc -= optind;
+    argv += optind;
+
+    static char *default_command[] = {
+        "cat", NULL
+    };
+    config->argv = argc > 0 ? argv : default_command;
 
     return 0;
 }
