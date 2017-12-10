@@ -29,8 +29,8 @@ static int     configure(struct config *config, int argc, char **argv);
 static int     run(const struct config *config);
 static int     do_run(const struct config *config, char *buf);
 
-static ssize_t pipe_lines(char **argv, const char *buf, size_t size);
-static int     pipe_data(char **argv, const char *buf, size_t size);
+static ssize_t pipe_lines(char **argv, const char *buf, size_t size, int *status);
+static int     pipe_data(char **argv, const char *buf, size_t size, int *status);
 static pid_t   open_pipe(char **argv, int *fd);
 
 static int     write_all(int fd, const char *buf, size_t size);
@@ -169,11 +169,16 @@ int do_run(const struct config *config, char *buf)
         avail += (size_t) nb_read;
 
         if (avail == config->bufsize || nb_read == 0) {
-            ssize_t used = pipe_lines(config->argv, buf, avail);
+            int status;
+            ssize_t used = pipe_lines(config->argv, buf, avail, &status);
             if (used == -1) {
                 perror("xpipe: failed to write to pipe");
                 return -1;
             }
+            if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                exit(WEXITSTATUS(status));
+            }
+
             avail -= (size_t) used;
             memmove(buf, buf + used, avail);
 
@@ -186,9 +191,15 @@ int do_run(const struct config *config, char *buf)
         }
     }
 
-    if (avail > 0 && pipe_data(config->argv, buf, avail) == -1) {
-        perror("xpipe: failed to write to pipe");
-        return -1;
+    if (avail > 0) {
+        int status;
+        if (pipe_data(config->argv, buf, avail, &status) == -1) {
+            perror("xpipe: failed to write to pipe");
+            return -1;
+        }
+        if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+            exit(WEXITSTATUS(status));
+        }
     }
 
     return 0;
@@ -200,14 +211,14 @@ int do_run(const struct config *config, char *buf)
 // newline character.
 //
 // Returns the number of bytes piped on success or -1 on error.
-ssize_t pipe_lines(char **argv, const char *buf, size_t size)
+ssize_t pipe_lines(char **argv, const char *buf, size_t size, int *status)
 {
     ssize_t end_pos = find_last(buf, size, '\n');
     if (end_pos == -1) {
         return 0;
     }
     size_t use = (size_t) end_pos + 1; // Include newline.
-    if (pipe_data(argv, buf, use) == -1) {
+    if (pipe_data(argv, buf, use, status) == -1) {
         return -1;
     }
     return (ssize_t) use;
@@ -216,7 +227,7 @@ ssize_t pipe_lines(char **argv, const char *buf, size_t size)
 // pipe_data executes a command, writes data to its stdin and waits for exit.
 //
 // Returns 0 on success or -1 on error.
-int pipe_data(char **argv, const char *buf, size_t size)
+int pipe_data(char **argv, const char *buf, size_t size, int *status)
 {
     int pipe_wr;
 
@@ -234,15 +245,7 @@ int pipe_data(char **argv, const char *buf, size_t size)
         return -1;
     }
 
-    int status;
-    if (waitpid(pid, &status, 0) == -1) {
-        return -1;
-    }
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-        return -1;
-    }
-
-    return 0;
+    return waitpid(pid, status, 0);
 }
 
 // open_pipe launches a command with stdin bound to a new pipe.
