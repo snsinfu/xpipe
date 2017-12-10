@@ -19,7 +19,7 @@
 
 struct config
 {
-    size_t bufsize;
+    size_t buf_size;
     char **argv;
     time_t timeout;
 };
@@ -50,9 +50,9 @@ enum
 int main(int argc, char **argv)
 {
     struct config config = {
-        .bufsize = 8192,
-        .argv    = NULL,
-        .timeout = 0,
+        .buf_size = 8192,
+        .argv     = NULL,
+        .timeout  = 0,
     };
     if (configure(&config, argc, argv) == -1) {
         return 1;
@@ -85,7 +85,7 @@ int configure(struct config *config, int argc, char **argv)
     for (int ch; (ch = getopt(argc, argv, "b:t:h")) != -1; ) {
         switch (ch) {
           case 'b':
-            if (parse_size(optarg, &config->bufsize) == -1) {
+            if (parse_size(optarg, &config->buf_size) == -1) {
                 fputs("xpipe: invalid buffer size\n", stderr);
                 return -1;
             }
@@ -117,7 +117,7 @@ int configure(struct config *config, int argc, char **argv)
 // Returns 0 on success or -1 on error.
 int run(const struct config *config)
 {
-    char *buf = malloc(config->bufsize);
+    char *buf = malloc(config->buf_size);
     if (buf == NULL) {
         perror("xpipe: failed to allocate memory");
         return -1;
@@ -139,7 +139,7 @@ int do_run(const struct config *config, char *buf)
 
     for (;;) {
         ssize_t nb_read = try_read(
-            STDIN_FILENO, buf + avail, config->bufsize - avail, active_deadline);
+            STDIN_FILENO, buf + avail, config->buf_size - avail, active_deadline);
         if (nb_read == 0) {
             break;
         }
@@ -162,7 +162,7 @@ int do_run(const struct config *config, char *buf)
 
         avail += (size_t) nb_read;
 
-        if (avail == config->bufsize || nb_read == 0) {
+        if (avail == config->buf_size || nb_read == 0) {
             int status;
             ssize_t used = pipe_lines(config->argv, buf, avail, &status);
             if (used == -1) {
@@ -179,7 +179,7 @@ int do_run(const struct config *config, char *buf)
             active_deadline = NULL;
         }
 
-        if (avail == config->bufsize) {
+        if (avail == config->buf_size) {
             fputs("xpipe: buffer full\n", stderr);
             return -1;
         }
