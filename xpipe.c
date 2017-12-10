@@ -155,6 +155,7 @@ int do_run(const struct config *config, char *buf)
         // Trigger a timeout measurement on the first read to empty buffer.
         if (config->timeout > 0 && avail == 0 && nb_read > 0) {
             if (monoclock(&deadline) == -1) {
+                perror("xpipe: failed to read clock");
                 return -1;
             }
             deadline.tv_sec += config->timeout;
