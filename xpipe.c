@@ -29,11 +29,11 @@ static int     init(struct xpipe *xpipe, int argc, char **argv);
 static int     run(const struct xpipe *xpipe);
 static int     do_run(const struct xpipe *xpipe, char *buf);
 
-static ssize_t pipe_lines(char **argv, const char *data, size_t size);
-static int     pipe_data(char **argv, const char *data, size_t size);
+static ssize_t pipe_lines(char **argv, const char *buf, size_t size);
+static int     pipe_data(char **argv, const char *buf, size_t size);
 static pid_t   open_pipe(char **argv, int *fd);
 
-static int     write_all(int fd, const char *data, size_t size);
+static int     write_all(int fd, const char *buf, size_t size);
 static ssize_t try_read(int fd, char *buf, size_t size, const struct timeval *deadline);
 static int     wait_input(int fd, const struct timeval *deadline);
 
@@ -44,7 +44,7 @@ static void    normalize(struct timeval *time);
 static int     parse_size(const char *str, size_t *value);
 static int     parse_duration(const char *str, time_t *value);
 static int     parse_uint(const char *str, uintmax_t *value, uintmax_t limit);
-static ssize_t find_last(const char *data, size_t size, char ch);
+static ssize_t find_last(const char *buf, size_t size, char ch);
 
 enum
 {
@@ -197,14 +197,14 @@ int do_run(const struct xpipe *xpipe, char *buf)
 // newline character.
 //
 // Returns the number of bytes piped on success or -1 on error.
-ssize_t pipe_lines(char **argv, const char *data, size_t size)
+ssize_t pipe_lines(char **argv, const char *buf, size_t size)
 {
-    ssize_t end_pos = find_last(data, size, '\n');
+    ssize_t end_pos = find_last(buf, size, '\n');
     if (end_pos == -1) {
         return 0;
     }
     size_t use = (size_t) end_pos + 1; // Include newline.
-    if (pipe_data(argv, data, use) == -1) {
+    if (pipe_data(argv, buf, use) == -1) {
         return -1;
     }
     return (ssize_t) use;
@@ -213,7 +213,7 @@ ssize_t pipe_lines(char **argv, const char *data, size_t size)
 // pipe_data executes a command, writes data to its stdin and waits for exit.
 //
 // Returns 0 on success or -1 on error.
-int pipe_data(char **argv, const char *data, size_t size)
+int pipe_data(char **argv, const char *buf, size_t size)
 {
     int pipe_wr;
 
@@ -222,7 +222,7 @@ int pipe_data(char **argv, const char *data, size_t size)
         return -1;
     }
 
-    if (write_all(pipe_wr, data, size) == -1) {
+    if (write_all(pipe_wr, buf, size) == -1) {
         // XXX: pipe_wr and pid leak if program recovers from this error.
         return -1;
     }
@@ -287,17 +287,17 @@ pid_t open_pipe(char **argv, int *fd)
 // write_all writes data to a file, handling potential partial writes.
 //
 // Returns 0 on success or -1 on error.
-int write_all(int fd, const char *data, size_t size)
+int write_all(int fd, const char *buf, size_t size)
 {
     while (size > 0) {
-        ssize_t written = write(fd, data, size);
+        ssize_t written = write(fd, buf, size);
         if (written == -1) {
             if (errno == EINTR) {
                 continue;
             }
             return -1;
         }
-        data += written;
+        buf += written;
         size -= (size_t) written;
     }
     return 0;
@@ -452,12 +452,12 @@ int parse_uint(const char *str, uintmax_t *value, uintmax_t limit)
 // find_last searches data for the last occurrence of ch.
 //
 // Returns the index of the last occurrence of ch or -1 if ch is not found.
-ssize_t find_last(const char *data, size_t size, char ch)
+ssize_t find_last(const char *buf, size_t size, char ch)
 {
     ssize_t pos = (ssize_t) size - 1;
 
     for (; pos >= 0; pos--) {
-        if (data[pos] == ch) {
+        if (buf[pos] == ch) {
             break;
         }
     }
