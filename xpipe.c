@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     struct config config = {
         .bufsize = 8192,
         .argv    = NULL,
-        .timeout = (time_t) -1,
+        .timeout = 0,
     };
 
     if (configure(&config, argc, argv) == -1) {
