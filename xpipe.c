@@ -28,20 +28,23 @@ static void    usage(void);
 static int     init(struct xpipe *xpipe, int argc, char **argv);
 static int     run(const struct xpipe *xpipe);
 static int     do_run(const struct xpipe *xpipe, char *buf);
-static int     parse_size(const char *str, size_t *value);
-static int     parse_duration(const char *str, time_t *value);
-static int     parse_uint(const char *str, uintmax_t *value, uintmax_t limit);
-static ssize_t find_last(const char *data, size_t size, char ch);
+
 static ssize_t pipe_lines(char **argv, const char *data, size_t size);
 static int     pipe_data(char **argv, const char *data, size_t size);
 static pid_t   open_pipe(char **argv, int *fd);
+
 static int     write_all(int fd, const char *data, size_t size);
 static ssize_t try_read(int fd, char *buf, size_t size, const struct timeval *deadline);
 static int     wait_input(int fd, const struct timeval *deadline);
+
 static int     monoclock(struct timeval *time);
 static void    sub(const struct timeval *t1, const struct timeval *t2, struct timeval *diff);
 static void    normalize(struct timeval *time);
 
+static int     parse_size(const char *str, size_t *value);
+static int     parse_duration(const char *str, time_t *value);
+static int     parse_uint(const char *str, uintmax_t *value, uintmax_t limit);
+static ssize_t find_last(const char *data, size_t size, char ch);
 
 enum
 {
@@ -186,85 +189,6 @@ int do_run(const struct xpipe *xpipe, char *buf)
     }
 
     return 0;
-}
-
-// parse_size parses and validates a size_t from string and stores the result
-// to given pointer (if not NULL).
-//
-// Returns 0 on success or -1 on error.
-int parse_size(const char *str, size_t *value)
-{
-    uintmax_t uint;
-    if (parse_uint(str, &uint, SIZE_MAX) == -1) {
-        return -1;
-    }
-    if (value) {
-        *value = (size_t) uint;
-    }
-    return 0;
-}
-
-// parse_duration parses and validates a time_t from string and stores the
-// result to given pointer (if not NULL).
-//
-// Returns 0 on success or -1 on error.
-int parse_duration(const char *str, time_t *value)
-{
-    uintmax_t uint;
-    if (parse_uint(str, &uint, 0x7fffffff) == -1) {
-        return -1;
-    }
-    if (value) {
-        *value = (time_t) uint;
-    }
-    return 0;
-}
-
-// parse_uint parses unsigned integer from string with limit validation.
-//
-// Returns 0 on success or -1 on error.
-int parse_uint(const char *str, uintmax_t *value, uintmax_t limit)
-{
-    errno = 0;
-    char *end;
-    intmax_t result = strtoimax(str, &end, 10);
-
-    if (end == str) {
-        return -1;
-    }
-    if (*end != '\0') {
-        return -1;
-    }
-    if ((result == INTMAX_MAX || result == INTMAX_MIN) && errno == ERANGE) {
-        return -1;
-    }
-    if (result < 0) {
-        return -1;
-    }
-    if ((uintmax_t) result > limit) {
-        return -1;
-    }
-    assert(errno == 0);
-
-    if (value) {
-        *value = (uintmax_t) result;
-    }
-    return 0;
-}
-
-// find_last searches data for the last occurrence of ch.
-//
-// Returns the index of the last occurrence of ch or -1 if ch is not found.
-ssize_t find_last(const char *data, size_t size, char ch)
-{
-    ssize_t pos = (ssize_t) size - 1;
-
-    for (; pos >= 0; pos--) {
-        if (data[pos] == ch) {
-            break;
-        }
-    }
-    return pos;
 }
 
 // pipe_lines pipes lines to a command.
@@ -459,4 +383,83 @@ void normalize(struct timeval *time)
         time->tv_sec--;
         time->tv_usec += second_usec;
     }
+}
+
+// parse_size parses and validates a size_t from string and stores the result
+// to given pointer (if not NULL).
+//
+// Returns 0 on success or -1 on error.
+int parse_size(const char *str, size_t *value)
+{
+    uintmax_t uint;
+    if (parse_uint(str, &uint, SIZE_MAX) == -1) {
+        return -1;
+    }
+    if (value) {
+        *value = (size_t) uint;
+    }
+    return 0;
+}
+
+// parse_duration parses and validates a time_t from string and stores the
+// result to given pointer (if not NULL).
+//
+// Returns 0 on success or -1 on error.
+int parse_duration(const char *str, time_t *value)
+{
+    uintmax_t uint;
+    if (parse_uint(str, &uint, 0x7fffffff) == -1) {
+        return -1;
+    }
+    if (value) {
+        *value = (time_t) uint;
+    }
+    return 0;
+}
+
+// parse_uint parses unsigned integer from string with limit validation.
+//
+// Returns 0 on success or -1 on error.
+int parse_uint(const char *str, uintmax_t *value, uintmax_t limit)
+{
+    errno = 0;
+    char *end;
+    intmax_t result = strtoimax(str, &end, 10);
+
+    if (end == str) {
+        return -1;
+    }
+    if (*end != '\0') {
+        return -1;
+    }
+    if ((result == INTMAX_MAX || result == INTMAX_MIN) && errno == ERANGE) {
+        return -1;
+    }
+    if (result < 0) {
+        return -1;
+    }
+    if ((uintmax_t) result > limit) {
+        return -1;
+    }
+    assert(errno == 0);
+
+    if (value) {
+        *value = (uintmax_t) result;
+    }
+    return 0;
+}
+
+// find_last searches data for the last occurrence of ch.
+//
+// Returns the index of the last occurrence of ch or -1 if ch is not found.
+ssize_t find_last(const char *data, size_t size, char ch)
+{
+    ssize_t pos = (ssize_t) size - 1;
+
+    for (; pos >= 0; pos--) {
+        if (data[pos] == ch) {
+            break;
+        }
+    }
+    return pos;
 }
