@@ -110,8 +110,9 @@ int configure(struct config *config, int argc, char **argv)
     argc -= optind;
     argv += optind;
 
+    static char cat[] = "cat";
     static char *default_command[] = {
-        "cat", NULL
+        cat, NULL
     };
     config->argv = argc > 0 ? argv : default_command;
 
@@ -351,7 +352,7 @@ int wait_input(int fd, const struct timeval *deadline)
 void close_or_exit(int fd, int status)
 {
     if (close(fd) == -1) {
-        perror("xpipe");
+        perror("xpipe: close failed");
         exit(status);
     }
 }

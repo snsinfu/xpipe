@@ -1,4 +1,4 @@
-CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Wconversion -Wshadow -O2
+CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Wconversion -Wshadow -Wwrite-strings -O2
 TARGET = xpipe
 OBJECTS = xpipe.o
 
